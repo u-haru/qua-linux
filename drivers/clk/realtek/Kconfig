@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config COMMON_CLK_RTD1295
+	bool "Clock driver for Realtek RTD1295"
+	depends on ARCH_REALTEK || COMPILE_TEST
+	depends on OF
+	default ARCH_REALTEK
+	select MFD_SYSCON
+	help
+	  Support for the clock gates and PLLs of the CRT and ISO blocks
+	  of the Realtek RTD1293/RTD1295/RTD1296 SoCs. Only the SCPU clock
+	  can be reprogrammed (for cpufreq); the other PLL rates are read-only.
