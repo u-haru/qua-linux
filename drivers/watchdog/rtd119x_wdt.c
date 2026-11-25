@@ -8,6 +8,7 @@
 
 #include <linux/bitops.h>
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -76,12 +77,27 @@ static int rtd119x_wdt_set_timeout(struct watchdog_device *wdev, unsigned int va
 	return 0;
 }
 
+static int rtd119x_wdt_restart(struct watchdog_device *wdev,
+			       unsigned long action, void *data_unused)
+{
+	struct rtd119x_watchdog_device *data = watchdog_get_drvdata(wdev);
+
+	/* Shortest overflow, then let it fire. */
+	writel(1, data->base + RTD119X_TCWOV);
+	writel_relaxed(RTD119X_TCWTR_WDCLR, data->base + RTD119X_TCWTR);
+	rtd119x_wdt_start(wdev);
+	mdelay(1000);
+
+	return 0;
+}
+
 static const struct watchdog_ops rtd119x_wdt_ops = {
 	.owner = THIS_MODULE,
 	.start		= rtd119x_wdt_start,
 	.stop		= rtd119x_wdt_stop,
 	.ping		= rtd119x_wdt_ping,
 	.set_timeout	= rtd119x_wdt_set_timeout,
+	.restart	= rtd119x_wdt_restart,
 };
 
 static const struct watchdog_info rtd119x_wdt_info = {
@@ -124,6 +140,7 @@ static int rtd119x_wdt_probe(struct platform_device *pdev)
 	data->wdt_dev.parent = dev;
 
 	watchdog_stop_on_reboot(&data->wdt_dev);
+	watchdog_set_restart_priority(&data->wdt_dev, 128);
 	watchdog_set_drvdata(&data->wdt_dev, data);
 	platform_set_drvdata(pdev, data);
 
