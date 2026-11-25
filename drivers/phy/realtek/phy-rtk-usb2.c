@@ -1063,7 +1063,8 @@ static void rtk_usb2phy_remove(struct platform_device *pdev)
 static const struct phy_cfg rtd1295_phy_cfg = {
 	.page0_size = MAX_USB_PHY_PAGE0_DATA_SIZE,
 	.page0 = { [0] = {0xe0, 0x90},
-		   [3] = {0xe3, 0x3a},
+		   [2] = {0xe2, 0x3a},
+		   [3] = {0xe3, 0x8d},
 		   [4] = {0xe4, 0x68},
 		   [6] = {0xe6, 0x91},
 		  [13] = {0xf5, 0x81},
