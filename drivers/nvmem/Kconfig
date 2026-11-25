@@ -433,6 +433,17 @@ config NVMEM_RMEM
 	  This driver can also be built as a module. If so, the module
 	  will be called nvmem-rmem.
 
+config NVMEM_RTD1295_EFUSE
+	tristate "Realtek RTD1295 eFuse Support"
+	depends on ARCH_REALTEK || COMPILE_TEST
+	depends on HAS_IOMEM
+	help
+	  Read-only access to the eFuse array of the Realtek RTD1295 SoC
+	  (chip ID, UUID, Ethernet PHY and USB calibration values).
+
+	  This driver can also be built as a module. If so, the module
+	  will be called nvmem-rtd1295-efuse.
+
 config NVMEM_ROCKCHIP_EFUSE
 	tristate "Rockchip eFuse Support"
 	depends on ARCH_ROCKCHIP || COMPILE_TEST
