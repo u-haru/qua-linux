@@ -346,6 +346,18 @@ config ARCH_REALTEK
 	  This enables support for the ARMv8 based Realtek chipsets,
 	  like the RTD1295.
 
+config QUASTATION
+	bool "Qua Station (RTD1295) vendor bootloader quirks"
+	depends on ARCH_REALTEK
+	help
+	  Board-specific workarounds for the au Qua Station's vendor U-Boot
+	  2015.07, which are not suitable for generic kernels:
+	  - the Image header advertises text_offset 0x100000, because that
+	    U-Boot's booti copies the Image to DRAM base + text_offset
+	    (0 would overwrite U-Boot, 0x80000 overlaps firmware memory).
+
+	  Say N unless building for the Qua Station with its stock U-Boot.
+
 config ARCH_RENESAS
 	bool "Renesas SoC Platforms"
 	help
