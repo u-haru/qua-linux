@@ -9,6 +9,7 @@
 #include "efuse.h"
 #include <linux/interrupt.h>
 #include <linux/export.h>
+#include <linux/pci-rtd1295.h>
 #include <linux/module.h>
 
 MODULE_AUTHOR("lizhaoming	<chaoming_li@realsil.com.cn>");
@@ -358,12 +359,57 @@ static void rtl_pci_init_aspm(struct ieee80211_hw *hw)
 	}
 }
 
+/*
+ * Realtek RTD1295: card registers are only reachable through the PCIe
+ * controller's 4K translated window, not through the MEM BAR mapping.
+ */
+static u8 rtd1295_read8(struct rtl_priv *rtlpriv, u32 addr)
+{
+	return rtd1295_pcie_mmio_read(to_pci_dev(rtlpriv->io.dev), addr, 1);
+}
+
+static u16 rtd1295_read16(struct rtl_priv *rtlpriv, u32 addr)
+{
+	return rtd1295_pcie_mmio_read(to_pci_dev(rtlpriv->io.dev), addr, 2);
+}
+
+static u32 rtd1295_read32(struct rtl_priv *rtlpriv, u32 addr)
+{
+	return rtd1295_pcie_mmio_read(to_pci_dev(rtlpriv->io.dev), addr, 4);
+}
+
+static void rtd1295_write8(struct rtl_priv *rtlpriv, u32 addr, u8 val)
+{
+	rtd1295_pcie_mmio_write(to_pci_dev(rtlpriv->io.dev), addr, val, 1);
+}
+
+static void rtd1295_write16(struct rtl_priv *rtlpriv, u32 addr, u16 val)
+{
+	rtd1295_pcie_mmio_write(to_pci_dev(rtlpriv->io.dev), addr, val, 2);
+}
+
+static void rtd1295_write32(struct rtl_priv *rtlpriv, u32 addr, u32 val)
+{
+	rtd1295_pcie_mmio_write(to_pci_dev(rtlpriv->io.dev), addr, val, 4);
+}
+
 static void _rtl_pci_io_handler_init(struct device *dev,
 				     struct ieee80211_hw *hw)
 {
 	struct rtl_priv *rtlpriv = rtl_priv(hw);
 
 	rtlpriv->io.dev = dev;
+
+	if (IS_ENABLED(CONFIG_PCIE_RTD1295) &&
+	    rtd1295_pcie_is_rtd(to_pci_dev(dev))) {
+		rtlpriv->io.write8 = rtd1295_write8;
+		rtlpriv->io.write16 = rtd1295_write16;
+		rtlpriv->io.write32 = rtd1295_write32;
+		rtlpriv->io.read8 = rtd1295_read8;
+		rtlpriv->io.read16 = rtd1295_read16;
+		rtlpriv->io.read32 = rtd1295_read32;
+		return;
+	}
 
 	rtlpriv->io.write8 = pci_write8_async;
 	rtlpriv->io.write16 = pci_write16_async;
