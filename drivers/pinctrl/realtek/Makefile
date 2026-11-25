@@ -5,3 +5,4 @@ obj-$(CONFIG_PINCTRL_RTD1619B)		+= pinctrl-rtd1619b.o
 obj-$(CONFIG_PINCTRL_RTD1319D)		+= pinctrl-rtd1319d.o
 obj-$(CONFIG_PINCTRL_RTD1315E)		+= pinctrl-rtd1315e.o
 obj-$(CONFIG_PINCTRL_RTD1625)		+= pinctrl-rtd1625.o
+obj-$(CONFIG_PINCTRL_RTD1295)		+= pinctrl-rtd1295.o

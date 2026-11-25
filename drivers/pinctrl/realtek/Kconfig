@@ -36,3 +36,11 @@ config PINCTRL_RTD1625
 	  electrical properties for both individual pins and pin groups.
 
 	  Say Y here to enable the pinctrl driver for RTD1625 SoCs
+
+config PINCTRL_RTD1295
+	tristate "Realtek DHC 1295 pin controller driver"
+	depends on PINCTRL_RTD
+	default ARCH_REALTEK
+	help
+	  Pin multiplexing and pad configuration for the ISO, SB2, DISP and
+	  card reader pad blocks of the Realtek RTD1293/RTD1295/RTD1296 SoCs.
