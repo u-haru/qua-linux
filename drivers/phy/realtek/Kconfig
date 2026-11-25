@@ -37,4 +37,14 @@ config PHY_RTD1295_RLE0599
 	  Enable this to support the USB 2.0 PHY of the EHCI/OHCI port of
 	  the Realtek RTD1295 SoC. It also ungates the OHCI clock.
 
+config PHY_RTD1295_SATA
+	tristate "Realtek RTD1295 SATA PHY driver"
+	depends on OF && HAS_IOMEM
+	select GENERIC_PHY
+	select MFD_SYSCON
+	help
+	  Enable this to support the SATA PHY of the Realtek RTD1295 SoC.
+	  The driver loads the PHY parameter tables when the AHCI
+	  controller initializes the PHY.
+
 endif # ARCH_REALTEK || COMPILE_TEST
