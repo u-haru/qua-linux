@@ -7,9 +7,12 @@
  */
 
 #include <linux/cleanup.h>
+#include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
+#include <linux/reset.h>
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/suspend.h>
@@ -287,6 +290,139 @@ static int dwc3_rtk_init(struct dwc3_rtk *rtk)
 	return 0;
 }
 
+/*
+ * RTD1295: the CRT USB resets and clk_en_usb are common to all USB ports
+ * (one RSTN_USB for every MAC). The vendor kernels (rtk-usb-manager) bring
+ * them up once, in this order: assert everything, release the PHY resets,
+ * wait, pulse clk_en_usb, release the USB3 PHY MDIO resets, release
+ * RSTN_USB, enable clk_en_usb. The dwc3 core only deasserts its own reset
+ * list back to back and reads GSNPSID at once, which only works when the
+ * bootloader ("usb start") has already done this. The BSP "apply" reset
+ * (asr1 0x100) is not a register bit: its reset driver queued deasserts
+ * and wrote them in one go; plain sequential deasserts are used here.
+ *
+ * The lines come from the glue node ("resets"/"reset-names", "clocks").
+ * They are taken exclusively and released again before the dwc3 core and
+ * EHCI/OHCI request them shared; if another driver already holds one
+ * (EHCI probed first), the sequence is skipped, since re-asserting
+ * RSTN_USB would kill that controller.
+ */
+static const char *const rtd1295_usb_phy_rst[] = {
+	"u2phy0", "u3phy0", "u2phy1", "u2phy2", "u2phy3", "u3phy1",
+};
+static const char *const rtd1295_usb_mdio_rst[] = { "u3mdio0", "u3mdio1" };
+
+static DEFINE_MUTEX(rtd1295_usb_lock);
+static bool rtd1295_usb_done;
+
+static void rtd1295_usb_put(struct reset_control **rsts, int n)
+{
+	while (n--)
+		reset_control_put(rsts[n]);
+}
+
+static int rtd1295_usb_get(struct device_node *np, const char *const *names,
+			   int n, struct reset_control **rsts)
+{
+	int i;
+
+	for (i = 0; i < n; i++) {
+		rsts[i] = of_reset_control_get_optional_exclusive(np, names[i]);
+		if (IS_ERR(rsts[i])) {
+			int ret = PTR_ERR(rsts[i]);
+
+			rtd1295_usb_put(rsts, i);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+static int rtd1295_usb_init_crt(struct dwc3_rtk *rtk)
+{
+	struct reset_control *phy[ARRAY_SIZE(rtd1295_usb_phy_rst)];
+	struct reset_control *mdio[ARRAY_SIZE(rtd1295_usb_mdio_rst)];
+	struct device_node *np = rtk->dev->of_node;
+	struct reset_control *usb;
+	struct clk *clk;
+	int i, ret;
+
+	if (!of_device_is_compatible(np, "realtek,rtd1295-dwc3") ||
+	    !of_property_present(np, "resets"))
+		return 0;
+
+	guard(mutex)(&rtd1295_usb_lock);
+	if (rtd1295_usb_done)
+		return 0;
+
+	clk = clk_get_optional(rtk->dev, NULL);
+	if (IS_ERR(clk))
+		return dev_err_probe(rtk->dev, PTR_ERR(clk), "no clk_en_usb\n");
+
+	usb = of_reset_control_get_exclusive(np, "usb");
+	if (IS_ERR(usb)) {
+		ret = PTR_ERR(usb);
+		goto skip;
+	}
+	ret = rtd1295_usb_get(np, rtd1295_usb_phy_rst, ARRAY_SIZE(phy), phy);
+	if (ret)
+		goto put_usb;
+	ret = rtd1295_usb_get(np, rtd1295_usb_mdio_rst, ARRAY_SIZE(mdio), mdio);
+	if (ret)
+		goto put_phy;
+
+	for (i = 0; i < ARRAY_SIZE(phy); i++)
+		reset_control_assert(phy[i]);
+	for (i = 0; i < ARRAY_SIZE(mdio); i++)
+		reset_control_assert(mdio[i]);
+	reset_control_assert(usb);
+
+	for (i = 0; i < ARRAY_SIZE(phy); i++)
+		reset_control_deassert(phy[i]);
+	fsleep(2000);
+
+	/* pulse clk_en_usb (vendor: enable -> disable) */
+	clk_prepare_enable(clk);
+	clk_disable_unprepare(clk);
+	fsleep(1000);
+
+	for (i = 0; i < ARRAY_SIZE(mdio); i++)
+		reset_control_deassert(mdio[i]);
+	reset_control_deassert(usb);
+	fsleep(1000);
+
+	/* kept on for good: EHCI/OHCI need it too and do not claim it */
+	ret = clk_prepare_enable(clk);
+	if (ret)
+		dev_warn(rtk->dev, "RTD1295 USB init: clk enable failed %d\n", ret);
+	fsleep(2000);
+
+	rtd1295_usb_put(mdio, ARRAY_SIZE(mdio));
+	rtd1295_usb_put(phy, ARRAY_SIZE(phy));
+	reset_control_put(usb);
+
+	rtd1295_usb_done = true;
+	dev_info(rtk->dev, "RTD1295 USB CRT reset/clock init done\n");
+	return 0;
+
+put_phy:
+	rtd1295_usb_put(phy, ARRAY_SIZE(phy));
+put_usb:
+	reset_control_put(usb);
+skip:
+	if (ret == -EPROBE_DEFER) {
+		clk_put(clk);
+		return ret;
+	}
+	/* still claim clk_en_usb so clk_disable_unused leaves it on */
+	if (!clk_prepare_enable(clk))
+		rtd1295_usb_done = true;
+	dev_warn(rtk->dev, "RTD1295 USB init skipped (%d), relying on bootloader state\n",
+		 ret);
+	return 0;
+}
+
 static int dwc3_rtk_probe_dwc3_core(struct dwc3_rtk *rtk)
 {
 	struct device *dev = rtk->dev;
@@ -295,6 +431,10 @@ static int dwc3_rtk_probe_dwc3_core(struct dwc3_rtk *rtk)
 	struct device *dwc3_dev;
 	enum usb_dr_mode dr_mode;
 	int ret = 0;
+
+	ret = rtd1295_usb_init_crt(rtk);
+	if (ret)
+		return ret;
 
 	ret = dwc3_rtk_init(rtk);
 	if (ret)
