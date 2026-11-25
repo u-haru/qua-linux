@@ -300,6 +300,17 @@ config PCIE_RENESAS_RZG3S_HOST
 	  Say Y here if you want PCIe host controller support on Renesas RZ/G3S
 	  SoC.
 
+config PCIE_RTD1295
+	bool "Realtek RTD1295 PCIe host controller"
+	depends on ARCH_REALTEK || COMPILE_TEST
+	depends on OF
+	select MFD_SYSCON
+	select RTD1295_RBUS
+	help
+	  Say Y here to enable support for the two PCIe 1-lane root
+	  complexes of the Realtek RTD1295 SoC (PCIe 1.1 and PCIe 2.0),
+	  as used on the Qua Station. Legacy INTx only, no MSI.
+
 config PCIE_ROCKCHIP
 	bool
 	depends on PCI
