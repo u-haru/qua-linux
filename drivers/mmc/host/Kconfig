@@ -899,6 +899,15 @@ config MMC_RTD1295_EMMC
 	  Native driver for the eMMC controller of the Realtek RTD1295 SoC,
 	  following the vendor command flow.
 
+config MMC_RTD1295_SD
+	tristate "Realtek RTD1295 SD card host controller"
+	depends on ARCH_REALTEK || COMPILE_TEST
+	depends on HAS_DMA
+	select MFD_SYSCON
+	help
+	  This selects the driver for the SD card slot (card reader) of the
+	  Realtek RTD1295 SoC.
+
 config MMC_DW_STARFIVE
 	tristate "StarFive specific extensions for Synopsys DW Memory Card Interface"
 	depends on SOC_STARFIVE
