@@ -501,6 +501,14 @@ config UNIPHIER_THERMAL
 	  thermal framework. The driver supports CPU thermal zone temperature
 	  reporting and a couple of trip points.
 
+config RTD1295_THERMAL
+	tristate "Realtek RTD1295 thermal sensor"
+	depends on ARCH_REALTEK || COMPILE_TEST
+	depends on HAS_IOMEM && THERMAL_OF
+	help
+	  Enable this to support the on-chip thermal sensors of the Realtek
+	  RTD1295 SoC (CPU and card reader area) as thermal zone sensors.
+
 config SPRD_THERMAL
 	tristate "Temperature sensor on Spreadtrum SoCs"
 	depends on ARCH_SPRD || COMPILE_TEST
