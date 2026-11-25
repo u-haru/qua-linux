@@ -1,0 +1,1239 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Device Tree for the au Qua Station (KDDI / Askey)
+ *
+ * Realtek RTD1295, 2 GiB DDR, 8 GB eMMC, SD card slot, SATA, two PCIe slots,
+ * USB 3.0 + USB 2.0 host ports and an internal LTE modem on USB.
+ */
+
+/dts-v1/;
+
+/*
+ * Memory the vendor BSP keeps away from Linux, so that the audio CPU
+ * firmware (ACPU, started by U-Boot) does not overwrite memory in use by
+ * Linux. rtd129x.dtsi already covers 0x0-0x100000 and the ACPU firmware at
+ * 0x1b00000.
+ *
+ * /memreserve/ rather than no-map: U-Boot loads the kernel at 0x03000000,
+ * inside the media ION heap, as the vendor firmware did.
+ */
+/memreserve/	0x0000000002600000 0x0000000000600000;	/* ION audio heap */
+/memreserve/	0x0000000002c00000 0x000000000b800000;	/* ION media heap 1 */
+/memreserve/	0x0000000010000000 0x0000000000014000;	/* ACPU I/D mem */
+/memreserve/	0x0000000011000000 0x0000000009200000;	/* ION media heap 2 */
+
+#include "rtd1295.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/thermal/thermal.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
+#include <dt-bindings/clock/realtek,rtd1295-clk.h>
+
+/ {
+	compatible = "askey,quastation", "realtek,rtd1295";
+	model = "Qua Station";
+
+	memory@1f000 {
+		device_type = "memory";
+		reg = <0x1f000 0x7ffe1000>; /* boot ROM to 2 GiB */
+	};
+
+	aliases {
+		serial0 = &uart0;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+		bootargs = "earlycon=uart8250,mmio32,0x98007800 console=ttyS0,115200 loglevel=8";
+	};
+
+};
+
+&cpu0 {
+	enable-method = "realtek,rtd1295-spin-table";
+	cpu-release-addr = <0x0 0x9801aa44>;
+	clocks = <&crt_clk RTD1295_CRT_CLK_SCPU>;
+	operating-points-v2 = <&cpu_opp>;
+	#cooling-cells = <2>;
+};
+
+&cpu1 {
+	enable-method = "realtek,rtd1295-spin-table";
+	cpu-release-addr = <0x0 0x9801aa44>;
+	clocks = <&crt_clk RTD1295_CRT_CLK_SCPU>;
+	operating-points-v2 = <&cpu_opp>;
+	#cooling-cells = <2>;
+};
+
+&cpu2 {
+	enable-method = "realtek,rtd1295-spin-table";
+	cpu-release-addr = <0x0 0x9801aa44>;
+	clocks = <&crt_clk RTD1295_CRT_CLK_SCPU>;
+	operating-points-v2 = <&cpu_opp>;
+	#cooling-cells = <2>;
+};
+
+&cpu3 {
+	enable-method = "realtek,rtd1295-spin-table";
+	cpu-release-addr = <0x0 0x9801aa44>;
+	clocks = <&crt_clk RTD1295_CRT_CLK_SCPU>;
+	operating-points-v2 = <&cpu_opp>;
+	#cooling-cells = <2>;
+};
+
+&uart0 {
+	status = "okay";
+};
+
+/* The PCIe interrupt-map entries use 0 parent address cells */
+&gic {
+	#address-cells = <0>;
+};
+
+/* Interrupt muxes and GPIO */
+
+&iso {
+	iso_irq_mux: interrupt-controller@0 {
+		compatible = "realtek,rtd1295-iso-irq-mux";
+		reg = <0x0 0x4>,	/* ISR (status, write 1 to clear) */
+		      <0x40 0x4>;	/* SCPU interrupt enable */
+		interrupts = <GIC_SPI 41 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-controller;
+		#interrupt-cells = <1>;
+	};
+
+	iso_gpio: gpio@100 {
+		compatible = "realtek,rtd1295-iso-gpio";
+		reg = <0x100 0x100>,	/* GPIO registers */
+		      <0x0 0xe8>;	/* GPIO interrupt status (GPA 0x08/0xe0, GPDA 0x0c/0xe4) */
+		interrupt-parent = <&iso_irq_mux>;
+		interrupts = <19>, <20>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		/* iso GPIO n = iso_pinctrl pin n */
+		gpio-ranges = <&iso_pinctrl 0 0 35>;
+	};
+};
+
+&misc {
+	misc_irq_mux: interrupt-controller@c {
+		compatible = "realtek,rtd1295-misc-irq-mux";
+		reg = <0xc 0x4>,	/* ISR (status, write 1 to clear) */
+		      <0x80 0x4>;	/* SCPU interrupt enable */
+		interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-controller;
+		#interrupt-cells = <1>;
+	};
+
+	misc_gpio: gpio@100 {
+		compatible = "realtek,rtd1295-misc-gpio";
+		reg = <0x100 0x100>,	/* GPIO registers */
+		      <0x0 0xc0>;	/* GPIO interrupt status (GPA 0x40/0x44/0xa4/0xb8, GPDA 0x54/0x58/0xa8/0xbc) */
+		interrupt-parent = <&misc_irq_mux>;
+		interrupts = <19>, <20>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		/*
+		 * misc GPIO 0..53 = sb2 pins 0..53, 54..63 = disp pins 0..9,
+		 * 64..100 = cr pins 0..36 (vendor BSP numbering). Requesting
+		 * a GPIO muxes the pad to "gpio".
+		 */
+		gpio-ranges = <&sb2_pinctrl 0 0 54>,
+			      <&disp_pinctrl 0 54 10>,
+			      <&cr_pinctrl 0 64 37>;
+	};
+};
+
+&uart0 {
+	interrupt-parent = <&iso_irq_mux>;
+	interrupts = <2>;
+};
+
+&uart1 {
+	interrupt-parent = <&misc_irq_mux>;
+	interrupts = <3>;
+};
+
+&uart2 {
+	interrupt-parent = <&misc_irq_mux>;
+	interrupts = <8>;
+};
+
+/* SATA */
+/ {
+	sata_power: regulator-sata-power {
+		compatible = "regulator-fixed";
+		regulator-name = "sata-power";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		gpio = <&misc_gpio 16 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		/* let the drive power up before the PHY/link comes up */
+		startup-delay-us = <100000>;
+	};
+};
+
+&rbus {
+	sata_phy: phy@3ff60 {
+		compatible = "realtek,rtd1295-sata-phy";
+		reg = <0x3ff60 0x10>;
+		#phy-cells = <0>;
+		realtek,sb2 = <&sb2>;
+		/* BSP "tx-driving = <2>": 683 mV max swing */
+		realtek,tx-driving = <2>;
+	};
+
+	sata: sata@3f000 {
+		compatible = "realtek,rtd1295-ahci", "generic-ahci";
+		reg = <0x3f000 0x1000>;
+		interrupts = <GIC_SPI 28 IRQ_TYPE_LEVEL_HIGH>;
+		/* BSP forces PORTS_IMPL; only port 0 is wired on RTD1295 */
+		ports-implemented = <0x1>;
+		/* released in this order before phy_init() */
+		resets = <&reset1 RTD1295_RSTN_SATA_0>,
+			 <&reset1 RTD1295_RSTN_SATA_PHY_0>,
+			 <&reset1 RTD1295_RSTN_SATA_PHY_POW_0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		sata-port@0 {
+			reg = <0>;
+			phys = <&sata_phy>;
+			target-supply = <&sata_power>;
+		};
+	};
+};
+
+/* PCIe */
+/ {
+	soc@0 {
+		pcie1: pcie@9804e000 {
+			compatible = "realtek,rtd1295-pcie1";
+			reg = <0x9804e000 0x1000>,
+			      <0x9804f000 0x1000>,
+			      <0x9801c600 0x100>;
+			reg-names = "ctrl", "mmio", "phy-mux";
+			pinctrl-names = "default";
+			pinctrl-0 = <&pcie1_clk_pins>;
+			device_type = "pci";
+			#address-cells = <3>;
+			#size-cells = <2>;
+			bus-range = <0x00 0xff>;
+			linux,pci-domain = <0>;
+			num-lanes = <1>;
+			/* 32-bit non-prefetchable MEM, 16 MiB, 1:1 */
+			ranges = <0x02000000 0x0 0xc0000000 0xc0000000 0x0 0x01000000>;
+			#interrupt-cells = <1>;
+			interrupt-map-mask = <0 0 0 0>;
+			interrupt-map = <0 0 0 0 &gic GIC_SPI 61 IRQ_TYPE_LEVEL_HIGH>;
+			resets = <&reset2 RTD1295_RSTN_PCIE0_STITCH>,
+				 <&reset2 RTD1295_RSTN_PCIE0>,
+				 <&reset2 RTD1295_RSTN_PCIE0_CORE>,
+				 <&reset2 RTD1295_RSTN_PCIE0_POWER>,
+				 <&reset2 RTD1295_RSTN_PCIE0_NONSTICH>,
+				 <&reset2 RTD1295_RSTN_PCIE0_PHY>,
+				 <&reset4 RTD1295_RSTN_PCIE0_PHY_MDIO>;
+			reset-names = "stitch", "rstn", "core", "power",
+				      "nonstitch", "phy", "phy_mdio";
+			reset-gpios = <&misc_gpio 18 GPIO_ACTIVE_LOW>;
+			realtek,sb2 = <&sb2>;
+			status = "okay";
+		};
+
+		pcie2: pcie@9803b000 {
+			compatible = "realtek,rtd1295-pcie2";
+			reg = <0x9803b000 0x1000>,
+			      <0x9803c000 0x1000>,
+			      <0x9801c600 0x100>;
+			reg-names = "ctrl", "mmio", "phy-mux";
+			pinctrl-names = "default";
+			pinctrl-0 = <&pcie2_clk_pins>;
+			device_type = "pci";
+			#address-cells = <3>;
+			#size-cells = <2>;
+			bus-range = <0x01 0xff>;
+			linux,pci-domain = <1>;
+			num-lanes = <1>;
+			/* BSP "speed-mode = <0>": train at Gen1 */
+			max-link-speed = <1>;
+			ranges = <0x02000000 0x0 0xc1000000 0xc1000000 0x0 0x01000000>;
+			#interrupt-cells = <1>;
+			interrupt-map-mask = <0 0 0 0>;
+			interrupt-map = <0 0 0 0 &gic GIC_SPI 62 IRQ_TYPE_LEVEL_HIGH>;
+			resets = <&reset2 RTD1295_RSTN_PCIE1_STITCH>,
+				 <&reset2 RTD1295_RSTN_PCIE1>,
+				 <&reset2 RTD1295_RSTN_PCIE1_CORE>,
+				 <&reset2 RTD1295_RSTN_PCIE1_POWER>,
+				 <&reset2 RTD1295_RSTN_PCIE1_NONSTICH>,
+				 <&reset2 RTD1295_RSTN_PCIE1_PHY>,
+				 <&reset4 RTD1295_RSTN_PCIE1_PHY_MDIO>;
+			reset-names = "stitch", "rstn", "core", "power",
+				      "nonstitch", "phy", "phy_mdio";
+			reset-gpios = <&misc_gpio 20 GPIO_ACTIVE_LOW>;
+			realtek,sb2 = <&sb2>;
+			status = "okay";
+		};
+	};
+};
+
+/*
+ * Buttons, LEDs, thermal, I2C, fan tachometer, RNG and eFuse
+ *
+ * Muxed interrupt numbers are the status bit numbers in the ISO/MISC
+ * interrupt status registers.
+ */
+/ {
+	aliases {
+		i2c0 = &i2c0;
+		i2c5 = &i2c5;
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+
+		/* All buttons read 0 when pressed */
+		button-reset {
+			label = "RESET";
+			gpios = <&iso_gpio 18 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+		};
+
+		button-wps {
+			label = "WPS";
+			gpios = <&iso_gpio 31 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_WPS_BUTTON>;
+		};
+
+		button-import {
+			label = "IMPORT";	/* "COPY" on the case */
+			gpios = <&iso_gpio 32 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_COPY>;
+		};
+
+		button-power {
+			label = "POWER";
+			gpios = <&iso_gpio 8 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_POWER>;
+			wakeup-source;
+		};
+	};
+
+	/*
+	 * All LEDs are active low; red + green together show orange/yellow.
+	 * Only the green power LED is on at boot, as in the vendor firmware.
+	 */
+	leds {
+		compatible = "gpio-leds";
+
+		/* misc GPIO 19 is the LTE modem power, not an LED */
+
+		led-lte-red {
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_MOBILE;
+			gpios = <&misc_gpio 17 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led-import-green {
+			color = <LED_COLOR_ID_GREEN>;
+			function = "import";
+			gpios = <&misc_gpio 5 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led-import-red {
+			color = <LED_COLOR_ID_RED>;
+			function = "import";
+			gpios = <&misc_gpio 100 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led-hdd-green {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_DISK;
+			gpios = <&misc_gpio 6 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led-hdd-red {
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_DISK;
+			gpios = <&misc_gpio 7 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led-wifi-green {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_WLAN;
+			gpios = <&misc_gpio 8 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led-wifi-red {
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_WLAN;
+			gpios = <&iso_gpio 7 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led-power-green {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_POWER;
+			gpios = <&iso_gpio 29 GPIO_ACTIVE_LOW>;
+			default-state = "on";
+		};
+
+		led-power-red {
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_POWER;
+			gpios = <&iso_gpio 30 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		/*
+		 * Purpose unknown (led_ctrl/led_ctrl1 in the vendor DT, probably
+		 * LED supply/brightness enables); kept at the vendor levels.
+		 * iso GPIO 21 is also the PWM0 pad; the PWM is not used.
+		 */
+		led-ctrl0 {
+			label = "qua:ctrl0";
+			gpios = <&iso_gpio 21 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led-ctrl1 {
+			label = "qua:ctrl1";
+			gpios = <&iso_gpio 20 GPIO_ACTIVE_HIGH>;
+			default-state = "on";
+		};
+	};
+
+	thermal-zones {
+		cpu-thermal {
+			polling-delay-passive = <250>;
+			polling-delay = <1000>;
+			thermal-sensors = <&cpu_tm>;
+
+			trips {
+				/* fan on (gpio-fan, misc GPIO 11); idle is ~60 C */
+				cpu_fan: cpu-fan {
+					temperature = <55000>;
+					hysteresis = <5000>;
+					type = "active";
+				};
+
+				/* passive trips from the vendor BSP */
+				cpu_alert0: cpu-alert0 {
+					temperature = <105000>;
+					hysteresis = <3000>;
+					type = "passive";
+				};
+
+				cpu_alert1: cpu-alert1 {
+					temperature = <115000>;
+					hysteresis = <3000>;
+					type = "passive";
+				};
+
+				cpu-crit {
+					temperature = <130000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+
+			cooling-maps {
+				map-fan {
+					trip = <&cpu_fan>;
+					cooling-device = <&fan THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+				map-cpu {
+					trip = <&cpu_alert0>;
+					cooling-device =
+						<&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
+						<&cpu1 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
+						<&cpu2 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
+						<&cpu3 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+			};
+		};
+
+		cr-thermal {
+			polling-delay-passive = <0>;
+			polling-delay = <0>;
+			thermal-sensors = <&cr_tm>;
+		};
+	};
+};
+
+&rbus {
+	/* Lies inside the card reader block, which it shares */
+	cr_tm: thermal-sensor@124b4 {
+		compatible = "realtek,rtd1295-thermal";
+		reg = <0x124b4 0x20>;
+		#thermal-sensor-cells = <0>;
+	};
+
+	efuse: efuse@17000 {
+		compatible = "realtek,rtd1295-efuse";
+		reg = <0x17000 0x400>;
+		read-only;
+
+		nvmem-layout {
+			compatible = "fixed-layout";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			/*
+			 * Only one cell per unit address can be described. The
+			 * vendor BSP also defines sub-fields overlapping these:
+			 * etn_phy_amp (1b9 bits 2+16), etn_phy_adc (1bb bits 2+16),
+			 * etn_phy_r (1bf bits 1+4), etn_phy_rc (1bf..1c0 bits 5+4),
+			 * usb_cc_en (1d8 bit 2), usb_cc1_4_7_k_cal (1d8 bits 3+4),
+			 * usb_cc1_12_k_cal (1d8..1d9 bits 7+4), usb_cc2_4_7_k_cal
+			 * (1d9 bits 3+4), usb_cc2_12_k_cal (1d9..1da bits 7+4) and
+			 * cc_cal (1dc..1df bits 4+24).
+			 */
+			efuse_uuid: uuid@1a4 {
+				reg = <0x1a4 0xc>;
+			};
+
+			/* Ethernet PHY calibration block */
+			efuse_etn_phy: etn-phy@1b9 {
+				reg = <0x1b9 0x9>;
+				bits = <2 64>;
+			};
+
+			efuse_pwr_id: pwr-id@1cc {
+				reg = <0x1cc 0x1>;
+				bits = <6 2>;
+			};
+
+			efuse_package_id: package-id@1d8 {
+				reg = <0x1d8 0x1>;
+				bits = <0 2>;
+			};
+
+			efuse_top_iddq: top-iddq@1da {
+				reg = <0x1da 0x2>;
+				bits = <3 6>;
+			};
+
+			efuse_cpu_iddq: cpu-iddq@1db {
+				reg = <0x1db 0x1>;
+				bits = <1 6>;
+			};
+
+			efuse_usb_dp_dm: usb-dp-dm@1dc {
+				reg = <0x1dc 0x1>;
+				bits = <0 4>;
+			};
+
+			efuse_chip_id: chip-id@200 {
+				reg = <0x200 0x10>;
+			};
+
+			efuse_prog_rvd: prog-rvd@3fc {
+				reg = <0x3fc 0x4>;
+			};
+		};
+	};
+};
+
+&iso {
+	/*
+	 * The I2C controllers are Synopsys DesignWare (v1.14a) clocked from the
+	 * 27 MHz crystal. The vendor BSP sets a Realtek SDA delay register
+	 * outside the block (ISO+0x84/0x80, MISC+0x8c..0x98) to 518 ns; the
+	 * DesignWare SDA hold time is used for the same purpose here.
+	 */
+	i2c0: i2c@d00 {
+		compatible = "snps,designware-i2c";
+		reg = <0xd00 0x100>;
+		interrupt-parent = <&iso_irq_mux>;
+		interrupts = <8>;
+		clocks = <&osc27M>;
+		resets = <&iso_reset RTD1295_ISO_RSTN_I2C_0>;
+		clock-frequency = <100000>;
+		i2c-sda-hold-time-ns = <518>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/*
+		 * GMT G2227 PMIC at 0x12 (6 buck + 2 LDO; dcdc2 = CPU,
+		 * dcdc3 = GPU, ldo3 = L2). No mainline driver; all rails are
+		 * boot-on/always-on and left as U-Boot configured them.
+		 */
+	};
+
+	i2c1: i2c@c00 {
+		compatible = "snps,designware-i2c";
+		reg = <0xc00 0x100>;
+		interrupt-parent = <&iso_irq_mux>;
+		interrupts = <11>;
+		clocks = <&osc27M>;
+		resets = <&iso_reset RTD1295_ISO_RSTN_I2C_1>;
+		clock-frequency = <100000>;
+		i2c-sda-hold-time-ns = <518>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";	/* no devices; disabled in the vendor DT */
+	};
+};
+
+&misc {
+	i2c2: i2c@700 {
+		compatible = "snps,designware-i2c";
+		reg = <0x700 0x100>;
+		interrupt-parent = <&misc_irq_mux>;
+		interrupts = <26>;
+		clocks = <&osc27M>;
+		resets = <&reset2 RTD1295_RSTN_I2C_2>;
+		clock-frequency = <100000>;
+		i2c-sda-hold-time-ns = <518>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";	/* pins not muxed to I2C on this board */
+	};
+
+	i2c3: i2c@900 {
+		compatible = "snps,designware-i2c";
+		reg = <0x900 0x100>;
+		interrupt-parent = <&misc_irq_mux>;
+		interrupts = <23>;
+		clocks = <&osc27M>;
+		resets = <&reset2 RTD1295_RSTN_I2C_3>;
+		clock-frequency = <100000>;
+		i2c-sda-hold-time-ns = <518>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";	/* pins not muxed to I2C on this board */
+	};
+
+	i2c4: i2c@a00 {
+		compatible = "snps,designware-i2c";
+		reg = <0xa00 0x100>;
+		interrupt-parent = <&misc_irq_mux>;
+		interrupts = <15>;
+		clocks = <&osc27M>;
+		resets = <&reset2 RTD1295_RSTN_I2C_4>;
+		clock-frequency = <100000>;
+		i2c-sda-hold-time-ns = <518>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";	/* disabled in the vendor DT */
+	};
+
+	i2c5: i2c@b00 {
+		compatible = "snps,designware-i2c";
+		reg = <0xb00 0x100>;
+		interrupt-parent = <&misc_irq_mux>;
+		interrupts = <14>;
+		clocks = <&osc27M>;
+		resets = <&reset2 RTD1295_RSTN_I2C_5>;
+		clock-frequency = <100000>;
+		i2c-sda-hold-time-ns = <518>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		/* pins muxed to I2C, no devices known */
+	};
+
+	/*
+	 * Fan tachometer (pad gpio_9). The fan speed is not driven by the PWM
+	 * block, which the vendor DT disables; see gpio-fan below.
+	 */
+	fan_tach: fan@c00 {
+		compatible = "realtek,rtd1295-fan-tach";
+		reg = <0xc00 0x14>;
+		interrupt-parent = <&misc_irq_mux>;
+		interrupts = <29>;
+		resets = <&reset4 RTD1295_RSTN_FAN>;
+	};
+};
+
+&sb2 {
+	/* 0x44 (RNG_DUMMY) is the spin-table cpu-release-addr: not mapped */
+	rng@a00 {
+		compatible = "realtek,rtd1295-rng";
+		reg = <0xa00 0x3c>;
+	};
+};
+
+&scpu_wrapper {
+	cpu_tm: thermal-sensor@150 {
+		compatible = "realtek,rtd1295-thermal";
+		reg = <0x150 0x20>;
+		#thermal-sensor-cells = <0>;
+	};
+};
+
+/*
+ * USB
+ *
+ *   DRD    dwc3 @0x98020000 (USB2 + USB3 PHY): rear USB 3.0 Type-A port.
+ *          Host only; the vendor Type-C logic is unused, there is no Type-C
+ *          connector. VBUS is iso GPIO 1.
+ *   U2HOST dwc3 @0x98029000 (USB2 PHY only): internal LTE modem
+ *          (Askey MDM9307, 05c6:9026), powered by misc GPIO 19.
+ *   EHCI/OHCI @0x98013000/0x98013400 (RLE0599 PHY): rear USB 2.0 Type-A
+ *          port, the one U-Boot boots from. VBUS is not switchable.
+ *   U3HOST dwc3 @0x981f0000 is not wired on this board and not described.
+ *
+ * All USB controllers share GIC SPI 21. The USB power domain in ISO
+ * 0x98007fb0 is on at boot and not handled by Linux.
+ *
+ * The USB2 PHY regions overlap the glue (0x13200/0x13c00) and core
+ * (0x20000/0x29000) regions on purpose: they are single registers inside
+ * those blocks.
+ *
+ * Binding deviations:
+ *  - realtek,rtd-dwc3 expects a second "pm control" reg; the RTD1295 has no
+ *    such register, so it is omitted.
+ *  - "realtek,rtd1295-ehci"/"-ohci" and "realtek,rtd1295-rle0599-phy" are
+ *    not documented yet.
+ */
+
+/ {
+	/* rear USB 3.0 port VBUS */
+	usb3_vbus: regulator-usb3-vbus {
+		compatible = "regulator-fixed";
+		regulator-name = "usb3-vbus";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		gpio = <&iso_gpio 1 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-boot-on;
+		regulator-always-on;	/* no consumer: dwc3 has no vbus-supply */
+	};
+
+	/*
+	 * LTE modem power. The vendor DT also declares an active-low LED
+	 * "lte_led_g" on this pin; it must not be added, as lighting it would
+	 * switch the modem off.
+	 */
+	lte_power: regulator-lte-power {
+		compatible = "regulator-fixed";
+		regulator-name = "lte-power";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		gpio = <&misc_gpio 19 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+};
+
+&rbus {
+	/* DRD: rear USB 3.0 port */
+	drd_usb2phy: usb-phy@13214 {
+		compatible = "realtek,rtd1295-usb2phy";
+		reg = <0x13214 0x4>,	/* wrapper VStatusOut2 */
+		      <0x28280 0x4>;	/* GUSB2PHYACC0 of dwc3 @0x20000 */
+		#phy-cells = <0>;
+	};
+
+	drd_usb3phy: usb-phy@13210 {
+		compatible = "realtek,rtd1295-usb3phy";
+		reg = <0x13210 0x4>;	/* MDIO control */
+		#phy-cells = <0>;
+	};
+
+	usb_drd: usb@13200 {
+		compatible = "realtek,rtd1295-dwc3", "realtek,rtd-dwc3";
+		reg = <0x13200 0x150>;	/* includes the Type-C SS lane switch at 0x1334c */
+		/*
+		 * Clock and resets shared by all USB controllers, released once
+		 * in the vendor order by whichever glue probes first.
+		 */
+		clocks = <&crt_clk RTD1295_CRT_CLK_EN_USB>;
+		resets = <&reset1 RTD1295_RSTN_USB_PHY0>,
+			 <&reset1 RTD1295_RSTN_USB3_PHY0_POW>,
+			 <&reset1 RTD1295_RSTN_USB_PHY1>,
+			 <&reset2 RTD1295_RSTN_USB_PHY2>,
+			 <&reset1 RTD1295_RSTN_USB3_P0_MDIO>,
+			 <&reset1 RTD1295_RSTN_USB>;
+		reset-names = "u2phy0", "u3phy0", "u2phy1", "u2phy2",
+			      "u3mdio0", "usb";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		usb@20000 {
+			compatible = "snps,dwc3";
+			reg = <0x20000 0x9000>;
+			interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>;
+			/* without the USB3 PHY the port only runs at USB2 speeds */
+			phys = <&drd_usb2phy>, <&drd_usb3phy>;
+			phy-names = "usb2-phy", "usb3-phy";
+			resets = <&reset1 RTD1295_RSTN_USB_PHY0>,
+				 <&reset1 RTD1295_RSTN_USB3_PHY0_POW>,
+				 <&reset1 RTD1295_RSTN_USB3_P0_MDIO>,
+				 <&reset1 RTD1295_RSTN_USB>;
+			dr_mode = "host";
+			snps,dis_u2_susphy_quirk;
+		};
+	};
+
+	/* U2HOST: internal LTE modem */
+	u2host_usb2phy: usb-phy@13c14 {
+		compatible = "realtek,rtd1295-usb2phy";
+		reg = <0x13c14 0x4>,	/* wrapper VStatusOut2 */
+		      <0x31280 0x4>;	/* GUSB2PHYACC0 of dwc3 @0x29000 */
+		#phy-cells = <0>;
+	};
+
+	usb_u2host: usb@13c00 {
+		compatible = "realtek,rtd1295-dwc3", "realtek,rtd-dwc3";
+		reg = <0x13c00 0x140>;
+		/* same shared clock and resets as usb_drd */
+		clocks = <&crt_clk RTD1295_CRT_CLK_EN_USB>;
+		resets = <&reset1 RTD1295_RSTN_USB_PHY0>,
+			 <&reset1 RTD1295_RSTN_USB3_PHY0_POW>,
+			 <&reset1 RTD1295_RSTN_USB_PHY1>,
+			 <&reset2 RTD1295_RSTN_USB_PHY2>,
+			 <&reset1 RTD1295_RSTN_USB3_P0_MDIO>,
+			 <&reset1 RTD1295_RSTN_USB>;
+		reset-names = "u2phy0", "u3phy0", "u2phy1", "u2phy2",
+			      "u3mdio0", "usb";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		usb@29000 {
+			compatible = "snps,dwc3";
+			reg = <0x29000 0x9000>;
+			interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>;
+			phys = <&u2host_usb2phy>;
+			phy-names = "usb2-phy";
+			resets = <&reset1 RTD1295_RSTN_USB_PHY1>,
+				 <&reset1 RTD1295_RSTN_USB>;
+			dr_mode = "host";
+			/* no USB3 PHY */
+			maximum-speed = "high-speed";
+			snps,dis_u2_susphy_quirk;
+		};
+	};
+
+	/* EHCI/OHCI: rear USB 2.0 port */
+	ehci_phy: usb-phy@13820 {
+		compatible = "realtek,rtd1295-rle0599-phy";
+		reg = <0x13820 0x8>,	/* wrapper: OHCI clock gate, VStatusOut2 */
+		      <0x130a4 0x4>;	/* EHCI INSNREG05 */
+		#phy-cells = <0>;
+	};
+
+	ehci: usb@13000 {
+		compatible = "realtek,rtd1295-ehci", "generic-ehci";
+		reg = <0x13000 0x100>;
+		interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>;
+		phys = <&ehci_phy>;
+		resets = <&reset2 RTD1295_RSTN_USB_PHY2>,
+			 <&reset1 RTD1295_RSTN_USB>;
+		companion = <&ohci>;
+	};
+
+	ohci: usb@13400 {
+		compatible = "realtek,rtd1295-ohci", "generic-ohci";
+		reg = <0x13400 0x100>;
+		interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>;
+		phys = <&ehci_phy>;
+		resets = <&reset2 RTD1295_RSTN_USB_PHY2>,
+			 <&reset1 RTD1295_RSTN_USB>;
+	};
+};
+
+/*
+ * Clock controllers. They use the regmap of the parent syscon and have no
+ * reg of their own. The UARTs keep using clock-frequency: the UR1/UR2
+ * gates have no parent rate.
+ */
+&crt {
+	crt_clk: clock-controller {
+		compatible = "realtek,rtd1295-crt-clk";
+		clocks = <&osc27M>;
+		#clock-cells = <1>;
+	};
+};
+
+&iso {
+	iso_clk: clock-controller {
+		compatible = "realtek,rtd1295-iso-clk";
+		clocks = <&osc27M>;
+		#clock-cells = <1>;
+	};
+};
+
+/*
+ * Pin controllers. The pad registers are split over four blocks (ISO, SB2,
+ * DISP and CR), each with its own controller. Pin names are the vendor pad
+ * names, one group per pad.
+ *
+ * The vendor I2C states only set the pull select bit without enabling the
+ * pull, so the I2C states here set no bias.
+ */
+
+&iso {
+	iso_pinctrl: pinctrl@300 {
+		compatible = "realtek,rtd1295-iso-pinctrl";
+		reg = <0x300 0x24>;
+
+		uart0_pins: uart0-pins {
+			pins = "ur0_rx", "ur0_tx";
+			function = "uart0";
+		};
+
+		uart1_pins: uart1-pins {
+			pins = "ur1_rx", "ur1_tx", "ur1_cts_n", "ur1_rts_n";
+			function = "uart1";
+		};
+
+		i2c0_pins: i2c0-pins {
+			pins = "i2c_scl_0", "i2c_sda_0";
+			function = "i2c0";
+		};
+
+		i2c1_pins: i2c1-pins {
+			pins = "i2c_scl_1", "i2c_sda_1";
+			function = "i2c1";
+		};
+
+		/*
+		 * The RESET button (iso GPIO 18) is on the i2c_scl_1 pad. Left
+		 * muxed to the unused I2C1 block, it reads low (pressed) once
+		 * that block's clock is gated, so mux it to GPIO.
+		 */
+		reset_key_pins: reset-key-pins {
+			pins = "i2c_scl_1";
+			function = "gpio";
+		};
+
+		i2c6_pins: i2c6-pins {
+			pins = "i2c_scl_6", "i2c_sda_6";
+			function = "i2c6";
+		};
+
+		etn_led_pins: etn-led-pins {
+			pins = "etn_led_link", "etn_led_rxtx";
+			function = "etn_led";
+		};
+
+		ir_rx_pins: ir-rx-pins {
+			pins = "ir_rx";
+			function = "ir_rx";
+		};
+
+		ir_tx_pins: ir-tx-pins {
+			pins = "ir_tx";
+			function = "ir_tx";
+		};
+	};
+};
+
+&sb2 {
+	sb2_pinctrl: pinctrl@900 {
+		compatible = "realtek,rtd1295-sb2-pinctrl";
+		reg = <0x900 0x80>;
+
+		i2c5_pins: i2c5-pins {
+			pins = "i2c_sda_5", "i2c_scl_5";
+			function = "i2c5";
+		};
+
+		/* SPI flash pads used as GPIO */
+		spi_loc_gpio_pins: spi-loc-gpio-pins {
+			pins = "gpio_0", "gpio_1", "gpio_2", "gpio_3", "sf_en";
+			function = "gpio";
+		};
+
+		/* fan tachometer input */
+		dc_fan_sensor_pins: dc-fan-sensor-pins {
+			pins = "gpio_9";
+			function = "dc_fan_sensor";
+		};
+
+		/* Ethernet RGMII */
+		rgmii0_pins: rgmii0-pins {
+			pins = "rgmii0_txc", "rgmii0_tx_ctl", "rgmii0_txd_0",
+			       "rgmii0_txd_1", "rgmii0_txd_2", "rgmii0_txd_3",
+			       "rgmii0_rxc", "rgmii0_rx_ctl", "rgmii0_rxd_0",
+			       "rgmii0_rxd_1", "rgmii0_rxd_2", "rgmii0_rxd_3",
+			       "rgmii0_mdio", "rgmii0_mdc";
+			function = "rgmii";
+		};
+
+		/*
+		 * PCIe PERST# (misc GPIO 18 and 20). Requesting the GPIO muxes
+		 * these pads already; the states are not referenced.
+		 */
+		pcie1_perst_pins: pcie1-perst-pins {
+			pins = "sensor_rst";
+			function = "gpio";
+		};
+
+		pcie2_perst_pins: pcie2-perst-pins {
+			pins = "sensor_stb_1";
+			function = "gpio";
+		};
+	};
+};
+
+&rbus {
+	disp_pinctrl: pinctrl@4d000 {
+		compatible = "realtek,rtd1295-disp-pinctrl";
+		reg = <0x4d000 0x10>;
+		/* audio pads only, none used on this board */
+	};
+
+	cr_pinctrl: pinctrl@12600 {
+		compatible = "realtek,rtd1295-cr-pinctrl";
+		reg = <0x12600 0x20>;
+
+		/* BSP sdcard_low: pull_en = 1, pull_sel = 0 */
+		sdcard_low_pins: sdcard-low-pins {
+			pins = "mmc_data_3", "mmc_data_2", "mmc_data_1",
+			       "mmc_data_0", "mmc_clk", "mmc_cmd";
+			function = "sd_card";
+			bias-pull-down;
+		};
+
+		/* BSP sdcard_high: pull_en = 1, pull_sel = 1 */
+		sdcard_high_pins: sdcard-high-pins {
+			pins = "mmc_cd", "mmc_wp";
+			function = "sd_card";
+			bias-pull-up;
+		};
+
+		pcie1_clk_pins: pcie1-clk-pins {
+			pins = "pcie_clkreq_0";
+			function = "pcie";
+		};
+
+		pcie2_clk_pins: pcie2-clk-pins {
+			pins = "pcie_clkreq_1";
+			function = "pcie";
+		};
+	};
+};
+
+/* Pin states applied at boot, as in the vendor firmware */
+&cr_pinctrl {
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdcard_low_pins>, <&sdcard_high_pins>;
+};
+
+&iso_pinctrl {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c0_pins>, <&reset_key_pins>, <&i2c6_pins>, <&etn_led_pins>;
+};
+
+&sb2_pinctrl {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c5_pins>, <&spi_loc_gpio_pins>, <&dc_fan_sensor_pins>;
+};
+
+&uart0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart0_pins>;
+};
+
+&uart1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart1_pins>;
+};
+
+/*
+ * eMMC and SD card
+ *
+ * The card reader block is split between the eMMC controller (DesignWare
+ * MSHC + Realtek wrapper, 0x12000-0x125ff), the CR pin controller
+ * (0x12600-0x1261f) and the pad drive registers shared by eMMC and SD
+ * (0x12620-0x12643).
+ *
+ * Resets are deliberately not described: the eMMC reset also resets the CR
+ * pad block, and the "cr" reset covers the DMA path shared by eMMC, SD and
+ * SDIO. U-Boot releases both.
+ */
+
+/ {
+	sd_vcc: regulator-sd-vcc {
+		compatible = "regulator-fixed";
+		regulator-name = "sd-vcc";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		/* driven low = card powered */
+		gpio = <&misc_gpio 99 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&cr_pinctrl {
+	/* The SD controller claims the card pins itself: no hog */
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+
+	/* card powered: pull-ups on CMD/DAT, pull-down on CLK (BSP 0x33333323) */
+	sdcard_on_low_pins: sdcard-on-low-pins {
+		pins = "mmc_data_3", "mmc_data_2", "mmc_data_1",
+		       "mmc_data_0", "mmc_cmd";
+		function = "sd_card";
+		bias-pull-up;
+	};
+
+	sdcard_on_clk_pins: sdcard-on-clk-pins {
+		pins = "mmc_clk";
+		function = "sd_card";
+		bias-pull-down;
+	};
+};
+
+&rbus {
+	cr_pad_drive: syscon@12620 {
+		compatible = "syscon";
+		reg = <0x12620 0x24>;
+		reg-io-width = <4>;
+	};
+
+	sdmmc: mmc@10400 {
+		compatible = "realtek,rtd1295-sd";
+		reg = <0x10400 0x200>;
+		interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;
+		realtek,crt = <&crt>;
+		realtek,pad-syscon = <&cr_pad_drive>;
+		realtek,sb2 = <&sb2>;
+		/* "default" = card unpowered, pulled down */
+		pinctrl-names = "default", "power-on";
+		pinctrl-0 = <&sdcard_low_pins>, <&sdcard_high_pins>;
+		pinctrl-1 = <&sdcard_on_low_pins>, <&sdcard_on_clk_pins>,
+			    <&sdcard_high_pins>;
+		vmmc-supply = <&sd_vcc>;
+		bus-width = <4>;
+		cap-sd-highspeed;
+		no-sdio;
+		no-mmc;
+		/* card detect and write protect come from the controller */
+		status = "okay";
+	};
+
+	emmc: mmc@12000 {
+		compatible = "realtek,rtd1295-emmc";
+		realtek,sb2 = <&sb2>;
+		reg = <0x12000 0x600>;
+		interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>;
+		realtek,crt = <&crt>;
+		realtek,pad-syscon = <&cr_pad_drive>;
+		/* in 32-bit words; FIFOTH as left by U-Boot cannot be used */
+		fifo-depth = <128>;
+		bus-width = <8>;
+		non-removable;
+		cap-mmc-highspeed;
+		no-sd;
+		no-sdio;
+		/* <clk cmd data ds> pad drive, vendor values */
+		realtek,drive-strength-hs = <0x77 0x77 0x77 0x77>;
+		realtek,drive-strength-hs200 = <0xbb 0xbb 0xbb 0xbb>;
+		/* HS200 at ~190 MHz; tuning only uses read commands */
+		mmc-hs200-1_8v;
+		status = "okay";
+	};
+};
+
+/* Clocks */
+&sata {
+	clocks = <&crt_clk RTD1295_CRT_CLK_EN_SATA_0>,
+		 <&crt_clk RTD1295_CRT_CLK_EN_SATA_ALIVE_0>;
+};
+
+&pcie1 {
+	clocks = <&crt_clk RTD1295_CRT_CLK_EN_PCIE0>;
+};
+
+&pcie2 {
+	clocks = <&crt_clk RTD1295_CRT_CLK_EN_PCIE1>;
+};
+
+&emmc {
+	clocks = <&crt_clk RTD1295_CRT_CLK_EN_EMMC>,
+		 <&crt_clk RTD1295_CRT_CLK_EN_EMMC_IP>,
+		 <&crt_clk RTD1295_CRT_CLK_EN_CR>;
+	clock-names = "emmc", "emmc_ip", "cr";
+};
+
+&sdmmc {
+	clocks = <&crt_clk RTD1295_CRT_CLK_EN_CR>,
+		 <&crt_clk RTD1295_CRT_CLK_EN_SD_IP>;
+	clock-names = "cr", "sd_ip";
+};
+
+&ehci {
+	clocks = <&crt_clk RTD1295_CRT_CLK_EN_USB>;
+};
+
+&ohci {
+	clocks = <&crt_clk RTD1295_CRT_CLK_EN_USB>;
+};
+
+&i2c0 {
+	clocks = <&iso_clk RTD1295_ISO_CLK_EN_I2C0>;
+};
+
+&i2c5 {
+	clocks = <&crt_clk RTD1295_CRT_CLK_EN_MISC_I2C_5>;
+};
+
+&fan_tach {
+	clocks = <&crt_clk RTD1295_CRT_CLK_EN_FAN>;
+};
+
+/ {
+	/*
+	 * CPU OPPs from the vendor BSP. The CPU rail (G2227 DCDC2) is not
+	 * controlled and stays at its 1.0 V power-on value, so only OPPs
+	 * needing at most 1.0 V are listed; opp-microvolt is informational.
+	 */
+	cpu_opp: opp-table-cpu {
+		compatible = "operating-points-v2";
+		opp-shared;
+
+		opp-300000000 {
+			opp-hz = /bits/ 64 <300000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <150000>;
+		};
+		opp-500000000 {
+			opp-hz = /bits/ 64 <500000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <150000>;
+		};
+		opp-600000000 {
+			opp-hz = /bits/ 64 <600000000>;
+			opp-microvolt = <825000>;
+			clock-latency-ns = <150000>;
+		};
+		opp-800000000 {
+			opp-hz = /bits/ 64 <800000000>;
+			opp-microvolt = <875000>;
+			clock-latency-ns = <150000>;
+		};
+		opp-1000000000 {
+			opp-hz = /bits/ 64 <1000000000>;
+			opp-microvolt = <925000>;
+			clock-latency-ns = <150000>;
+		};
+		opp-1100000000 {
+			opp-hz = /bits/ 64 <1100000000>;
+			opp-microvolt = <962500>;
+			clock-latency-ns = <150000>;
+		};
+	};
+
+	/*
+	 * Fan on misc GPIO 11 (i2c_scl_4 pad). Low = on (~2300 rpm); high
+	 * stalls the fan (it only keeps turning slowly if already spinning),
+	 * so it is used as on/off only. Leave misc GPIO 12 (i2c_sda_4) alone.
+	 */
+	fan: gpio-fan {
+		compatible = "gpio-fan";
+		gpios = <&misc_gpio 11 GPIO_ACTIVE_LOW>;
+		gpio-fan,speed-map = <0 0>, <2300 1>;
+		#cooling-cells = <2>;
+	};
+};
