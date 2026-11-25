@@ -889,6 +889,16 @@ config MMC_DW_ROCKCHIP
 	  Synopsys DesignWare Memory Card Interface driver. Select this option
 	  for platforms based on RK3066, RK3188 and RK3288 SoC's.
 
+config MMC_RTD1295_EMMC
+	tristate "Realtek RTD1295 eMMC host controller (native driver)"
+	depends on ARCH_REALTEK || COMPILE_TEST
+	depends on HAS_DMA
+	select MFD_SYSCON
+	select RTD1295_RBUS
+	help
+	  Native driver for the eMMC controller of the Realtek RTD1295 SoC,
+	  following the vendor command flow.
+
 config MMC_DW_STARFIVE
 	tristate "StarFive specific extensions for Synopsys DW Memory Card Interface"
 	depends on SOC_STARFIVE
