@@ -45,6 +45,11 @@
 #define WRAP_APHY_REG 0x128
 #define USB3_MBIAS_ENABLE BIT(1)
 
+/* RTD1295 DRD: Type-C block in the glue, CC1 control holds the SS lane mux */
+#define WRAP_RTD1295_TYPEC_CC1_0_REG 0x14c
+#define RTD1295_TYPEC_EN_SWITCH BIT(29)
+#define RTD1295_TYPEC_TXRX_SEL (BIT(28) | BIT(27))
+
 /* pm control */
 #define WRAP_USB_DBUS_PWR_CTRL_REG 0x160
 #define USB_DBUS_PWR_CTRL_REG 0x0
@@ -248,6 +253,20 @@ static int dwc3_rtk_init(struct dwc3_rtk *rtk)
 
 			dev_dbg(rtk->dev, "%s: disable usb 3.0 phy\n", __func__);
 		}
+	} else if (of_device_is_compatible(dev->of_node, "realtek,rtd1295-dwc3") &&
+		   rtk->regs_size >= WRAP_RTD1295_TYPEC_CC1_0_REG + 4) {
+		/*
+		 * The RTD1295 DRD SuperSpeed lanes pass through the Type-C
+		 * plug-side switch, normally set by the Type-C driver on
+		 * attach. A board without Type-C (USB-A receptacle) maps the
+		 * glue up to the Type-C block instead and gets the lanes
+		 * routed here. On the Qua Station the Type-C block sees Rd on
+		 * CC1 (TYPEC_STS 0x3b) and the stock 4.1 firmware attaches at
+		 * CC1 (EN_SWITCH only), with SuperSpeed working.
+		 */
+		reg = rtk->regs + WRAP_RTD1295_TYPEC_CC1_0_REG;
+		val = readl(reg) & ~(RTD1295_TYPEC_EN_SWITCH | RTD1295_TYPEC_TXRX_SEL);
+		writel(RTD1295_TYPEC_EN_SWITCH | val, reg);
 	}
 
 	reg = rtk->regs + WRAP_CTR_REG;
