@@ -355,6 +355,9 @@ config QUASTATION
 	  - the Image header advertises text_offset 0x100000, because that
 	    U-Boot's booti copies the Image to DRAM base + text_offset
 	    (0 would overwrite U-Boot, 0x80000 overlaps firmware memory).
+	  - the "realtek,rtd1295-spin-table" enable-method, because its
+	    firmware (BL31 v1.2) has no PSCI and parks the secondary CPUs at
+	    EL3: they are released into a trampoline that drops to EL2.
 
 	  Say N unless building for the Qua Station with its stock U-Boot.
 
