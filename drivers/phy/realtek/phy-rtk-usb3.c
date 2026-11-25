@@ -615,7 +615,7 @@ static void rtk_usb3phy_remove(struct platform_device *pdev)
 
 static const struct phy_cfg rtd1295_phy_cfg = {
 	.param_size = MAX_USB_PHY_DATA_SIZE,
-	.param = {  [0] = {0x01, 0x4008},  [1] = {0x01, 0xe046},
+	.param = {  [0] = {0x00, 0x4008},  [1] = {0x01, 0xe046},
 		    [2] = {0x02, 0x6046},  [3] = {0x03, 0x2779},
 		    [4] = {0x04, 0x72f5},  [5] = {0x05, 0x2ad3},
 		    [6] = {0x06, 0x000e},  [7] = {0x07, 0x2e00},
