@@ -102,7 +102,7 @@ static const struct watchdog_ops rtd119x_wdt_ops = {
 
 static const struct watchdog_info rtd119x_wdt_info = {
 	.identity = "rtd119x-wdt",
-	.options = 0,
+	.options = WDIOF_SETTIMEOUT | WDIOF_KEEPALIVEPING | WDIOF_MAGICCLOSE,
 };
 
 static const struct of_device_id rtd119x_wdt_dt_ids[] = {
