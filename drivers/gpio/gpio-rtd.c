@@ -41,6 +41,8 @@
  * @deb_offset: Offset for GPIO debounce registers
  * @deb_val: Register values representing the GPIO debounce time
  * @get_deb_setval: Used to get the corresponding value for setting the debounce register
+ * @irq_window_shared: The interrupt register window (reg[1]) also spans other
+ *		       controllers of the block, so it is mapped without being claimed
  */
 struct rtd_gpio_info {
 	const char	*name;
@@ -58,6 +60,7 @@ struct rtd_gpio_info {
 	u8		(*get_deb_setval)(const struct rtd_gpio_info *info,
 					  unsigned int offset, u8 deb_index,
 					  u8 *reg_offset, u8 *shift);
+	bool		irq_window_shared;
 };
 
 struct rtd_gpio {
@@ -157,6 +160,7 @@ static const struct rtd_gpio_info rtd1295_misc_gpio_info = {
 	.deb_offset		= (u8 []){ 0x50 },
 	.deb_val		= (u8 []){ 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7 },
 	.get_deb_setval		= rtd1295_misc_gpio_get_deb_setval,
+	.irq_window_shared	= true,
 };
 
 static const struct rtd_gpio_info rtd1295_iso_gpio_info = {
@@ -173,6 +177,7 @@ static const struct rtd_gpio_info rtd1295_iso_gpio_info = {
 	.deb_offset		= (u8 []){ 0x14 },
 	.deb_val		= (u8 []){ 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7 },
 	.get_deb_setval		= rtd1295_iso_gpio_get_deb_setval,
+	.irq_window_shared	= true,
 };
 
 static int rtd_gpio_dir_offset(struct rtd_gpio *data, unsigned int offset)
@@ -527,6 +532,7 @@ static int rtd_gpio_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct gpio_irq_chip *irq_chip;
 	struct rtd_gpio *data;
+	struct resource *res;
 	int ret;
 
 	data = devm_kzalloc_obj(dev, *data);
@@ -553,9 +559,24 @@ static int rtd_gpio_probe(struct platform_device *pdev)
 	if (IS_ERR(data->base))
 		return PTR_ERR(data->base);
 
-	data->irq_base = devm_platform_ioremap_resource(pdev, 1);
-	if (IS_ERR(data->irq_base))
-		return PTR_ERR(data->irq_base);
+	if (data->info->irq_window_shared) {
+		/*
+		 * RTD129x: the interrupt registers sit at fixed offsets from the
+		 * start of the ISO/MISC block (0x8/0xc and 0xe0/0xe4), so the
+		 * window spans other controllers of the block (e.g. the ISO reset
+		 * controller at 0x88). Map it without claiming the region.
+		 */
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+		if (!res)
+			return -EINVAL;
+		data->irq_base = devm_ioremap(dev, res->start, resource_size(res));
+		if (!data->irq_base)
+			return -ENOMEM;
+	} else {
+		data->irq_base = devm_platform_ioremap_resource(pdev, 1);
+		if (IS_ERR(data->irq_base))
+			return PTR_ERR(data->irq_base);
+	}
 
 	data->gpio_chip.label = dev_name(dev);
 	data->gpio_chip.base = -1;
