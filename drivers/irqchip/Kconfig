@@ -571,6 +571,17 @@ config IMX_INTMUX
 	help
 	  Support for the i.MX INTMUX interrupt multiplexer.
 
+config RTD1295_IRQ_MUX
+	bool "Realtek RTD1295 ISO/MISC interrupt mux"
+	depends on ARCH_REALTEK || COMPILE_TEST
+	depends on OF && HAS_IOMEM
+	default y if ARCH_REALTEK
+	select IRQ_DOMAIN
+	help
+	  Support for the two interrupt muxes in the ISO and MISC blocks of
+	  the Realtek RTD1295 SoC, which feed UARTs, I2C, GPIO, RTC and other
+	  low-speed peripherals into one GIC interrupt each.
+
 config IMX_MU_MSI
 	tristate "i.MX MU used as MSI controller"
 	depends on OF && HAS_IOMEM
