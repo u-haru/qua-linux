@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config RTD1295_RBUS
+	bool
+	help
+	  Lock shared by the RTD1295 drivers whose register accesses are hit
+	  by the A01 rbus erratum (eMMC, PCIe card MMIO). Selected by them.
