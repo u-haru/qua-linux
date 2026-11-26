@@ -136,7 +136,7 @@ static int rtd119x_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	for (i = data->base_year; i < 1900 + tm->tm_year; i++)
 		day += rtd119x_rtc_days_in_year(i);
 
-	day += tm->tm_yday;
+	day += rtc_year_days(tm->tm_mday, tm->tm_mon, 1900 + tm->tm_year);
 	if (day > 0x7fff)
 		return -EINVAL;
 
