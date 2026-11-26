@@ -54,6 +54,7 @@
 	cpu-release-addr = <0x0 0x9801aa44>;
 	clocks = <&crt_clk RTD1295_CRT_CLK_SCPU>;
 	operating-points-v2 = <&cpu_opp>;
+	cpu-supply = <&vdd_cpu>;
 	#cooling-cells = <2>;
 };
 
@@ -62,6 +63,7 @@
 	cpu-release-addr = <0x0 0x9801aa44>;
 	clocks = <&crt_clk RTD1295_CRT_CLK_SCPU>;
 	operating-points-v2 = <&cpu_opp>;
+	cpu-supply = <&vdd_cpu>;
 	#cooling-cells = <2>;
 };
 
@@ -70,6 +72,7 @@
 	cpu-release-addr = <0x0 0x9801aa44>;
 	clocks = <&crt_clk RTD1295_CRT_CLK_SCPU>;
 	operating-points-v2 = <&cpu_opp>;
+	cpu-supply = <&vdd_cpu>;
 	#cooling-cells = <2>;
 };
 
@@ -78,6 +81,7 @@
 	cpu-release-addr = <0x0 0x9801aa44>;
 	clocks = <&crt_clk RTD1295_CRT_CLK_SCPU>;
 	operating-points-v2 = <&cpu_opp>;
+	cpu-supply = <&vdd_cpu>;
 	#cooling-cells = <2>;
 };
 
@@ -560,10 +564,67 @@
 		#size-cells = <0>;
 
 		/*
-		 * GMT G2227 PMIC at 0x12 (6 buck + 2 LDO; dcdc2 = CPU,
-		 * dcdc3 = GPU, ldo3 = L2). No mainline driver; all rails are
-		 * boot-on/always-on and left as U-Boot configured them.
+		 * GMT G2227 PMIC. Only dcdc2 (CPU) is scaled; the other rails
+		 * have no voltage constraints and keep the U-Boot settings.
+		 * ldo3 (L2) stays at 0.9 V, which the vendor BSP uses while
+		 * the CPU rail is at most 1.0 V.
 		 */
+		pmic@12 {
+			compatible = "gmt,g2227";
+			reg = <0x12>;
+
+			regulators {
+				vd33: dcdc1 {
+					regulator-name = "vd33";
+					regulator-boot-on;
+					regulator-always-on;
+				};
+
+				vdd_cpu: dcdc2 {
+					regulator-name = "vdd_cpu";
+					regulator-min-microvolt = <800000>;
+					regulator-max-microvolt = <1000000>;
+					regulator-boot-on;
+					regulator-always-on;
+				};
+
+				vdd_gpu: dcdc3 {
+					regulator-name = "vdd_gpu";
+					regulator-boot-on;
+					regulator-always-on;
+				};
+
+				vdd_ddr: dcdc4 {
+					regulator-name = "vdd_ddr";
+					regulator-boot-on;
+					regulator-always-on;
+				};
+
+				vdd_iso: dcdc5 {
+					regulator-name = "vdd_iso";
+					regulator-boot-on;
+					regulator-always-on;
+				};
+
+				vdd_top: dcdc6 {
+					regulator-name = "vdd_top";
+					regulator-boot-on;
+					regulator-always-on;
+				};
+
+				vd18: ldo2 {
+					regulator-name = "vd18";
+					regulator-boot-on;
+					regulator-always-on;
+				};
+
+				vdd_l2: ldo3 {
+					regulator-name = "vdd_l2";
+					regulator-boot-on;
+					regulator-always-on;
+				};
+			};
+		};
 	};
 
 	i2c1: i2c@c00 {
@@ -1185,9 +1246,8 @@
 
 / {
 	/*
-	 * CPU OPPs from the vendor BSP. The CPU rail (G2227 DCDC2) is not
-	 * controlled and stays at its 1.0 V power-on value, so only OPPs
-	 * needing at most 1.0 V are listed; opp-microvolt is informational.
+	 * CPU OPPs from the vendor BSP. Only OPPs needing at most 1.0 V are
+	 * listed: above that the vendor BSP also raises the L2 rail.
 	 */
 	cpu_opp: opp-table-cpu {
 		compatible = "operating-points-v2";
