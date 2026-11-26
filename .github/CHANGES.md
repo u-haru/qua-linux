@@ -4,7 +4,7 @@
 
 ## 動作状況
 
-- 動作: CPU 4コア、cpufreq(300〜1100 MHz、ondemand)
+- 動作: CPU 4コア、cpufreq(300〜1100 MHz、ondemand、CPU電圧0.8〜0.9625 Vも連動)
 - 動作: eMMC(HS200 190 MHz)
 - 動作: SDカード(HS 50 MHz)
 - 動作: USB 3.0(SuperSpeed)/ USB 2.0
@@ -43,6 +43,7 @@
 - `PCI: rtd1295` — PCIe 2スロット。CPUからPCIのMEM窓ではカードのレジスタに届かないため、コントローラの4 KiB窓 +変換レジスタ経由のアクセサを提供
 - `mmc: rtd1295 eMMC` — 汎用dw_mmcはエラー後のリセットでSoCごと固まるため、ベンダーと同じ手順で動かす。HS200(190 MHz)対応
 - `mmc: rtd1295 SD` — SDHCIでもDW MSHCでもない独自コア。HS 50 MHz
+- `regulator: add GMT G2227 PMIC driver` — PMIC(DCDC×6、LDO×2)。CPU電圧(dcdc2)をcpufreqに連動させる。起動ごとに最初のI2C転送だけNAKされる(原因は起動の流れ側と推定)ため、チップIDの読み出しを再試行する
 
 ### 既存ドライバへのRTD1295向け追加
 
@@ -59,10 +60,12 @@
 
 - `arm64: dts: realtek: add the au Qua Station` — DT
 - `arm64: configs: add a Qua Station config fragment` — `make defconfig quastation.config`
+- `arm64: dts: realtek: quastation: add the G2227 PMIC` / `arm64: configs: quastation: enable the G2227 regulator` — G2227をCPUの電源(`cpu-supply`)にする
 
 ## 既知の問題
 
-- CPU電圧(PMIC G2227)は制御していないため、cpufreqは1.1 GHzまで
+- cpufreqは1.1 GHzまで(1.2 GHz以上はL2の電圧(ldo3)もCPU電圧に合わせて上げる必要があり未対応)
+- G2227はdcdc2の電圧変更だけ実機確認済み。ON/OFF、モード切り替え、他の系統の電圧変更は未検証
 - schedutilではアイドル時に周波数が下がらないため、既定のガバナーはondemand
 - Wi-Fiカードは自前の設定値を持たず(`Autoload ERR`)、MACアドレスは起動ごとにランダム。送信出力の補正値も使っていない(どちらも純正ではeMMCの工場設定領域から読んでいた？)
 - RTL8812AEからは2.4 GHzのAPが見えない
