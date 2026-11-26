@@ -9,7 +9,7 @@
 - 動作: SDカード(HS 50 MHz)
 - 動作: USB 3.0(SuperSpeed)/ USB 2.0
 - 動作: Wi-Fi RTL8192EE(2.4 GHz)/ RTL8812AE(5 GHz)
-- 動作: 温度センサー、ファン、LED、ボタン、watchdog、乱数、eFuse
+- 動作: 温度センサー、ファン、LED、ボタン、watchdog、乱数、eFuse、RTC
 - 動作: KVM
 - 未検証: SATA(2.5インチディスクが無く確認できていない)
 
@@ -33,6 +33,7 @@
 - `watchdog: rtd119x: add a restart handler` — PSCIが無いので再起動手段が無かった
 - `watchdog: rtd119x: advertise settimeout and keepalive ping` — systemdなどがpingできず、120秒でリセットされていた
 - `wifi: rtlwifi: serialize IPS interrupt enable/disable with the ISR` — 省電力(IPS)の出入りと割り込みハンドラが競合し、レベル割り込みが鳴りっぱなしになってCPUがストールしていた
+- `rtc: rtd119x: compute the day of the year from the date` — カーネルの`rtc_time64_to_tm()`は`tm_yday`を1始まりで返すため、NTP同期でカーネルがRTCを書くと1日進んでいた
 
 ### RTD1295の新規ドライバ
 
@@ -61,6 +62,7 @@
 - `arm64: dts: realtek: add the au Qua Station` — DT
 - `arm64: configs: add a Qua Station config fragment` — `make defconfig quastation.config`
 - `arm64: dts: realtek: quastation: add the G2227 PMIC` / `arm64: configs: quastation: enable the G2227 regulator` — G2227をCPUの電源(`cpu-supply`)にする
+- `arm64: dts: realtek: quastation: add the RTC` — mainlineの`rtc-rtd119x`を使う
 
 ## 既知の問題
 
